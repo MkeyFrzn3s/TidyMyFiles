@@ -31,7 +31,7 @@ Efficiently organize and manage your extensive photo and video collection. Organ
 
 ## Contributing
 
-See CONTRIBUTING.md for guidelines.
+See COLLABORATING.md for guidelines.
 
 ## License
 
