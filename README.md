@@ -1,11 +1,11 @@
-# Tidy Photo Files
+# Tidy My Files
 
-Efficiently organize and manage your extensive photo and video collection. Organize files from different seasons in life and cloud backups, using best practices, removing duplicates, and low-quality files.
+You can efficiently organize and manage your extensive photo and video collection. Organize files from different seasons in life and cloud backups, using best practices, removing duplicates and low-quality files.
 
 ## Features
 
 - Moves photos and videos to a well-organized folder structure based on capture dates.
-- Renames files using customizable naming scheme (date, camera model, location, event).
+- Renames files using a customizable naming scheme (date, camera model, location, event).
 - Utilizes metadata for accurate organization and naming.
 - Supports cloud backup integration and synchronizes local copy.
 - Includes quality assessment to exclude duplicates and low-quality files.
@@ -23,9 +23,9 @@ Efficiently organize and manage your extensive photo and video collection. Organ
 
 1. Run the app:
    ```
-   python tidy_photo_files.py
+   python tidy_my_files.py
    ```
-2. Follow prompts to set source/destination folders, naming scheme, etc.
+2. Follow prompts to set source/destination folders, naming schemes, etc.
 3. Click "Organize" to move and rename files.
 4. Review summary report.
 
