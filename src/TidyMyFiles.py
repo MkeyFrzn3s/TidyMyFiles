@@ -63,11 +63,19 @@ def process_files(directory):
             destination_month_folder = os.path.join(destination_year_folder, month)
             os.makedirs(destination_month_folder, exist_ok=True)
 
-            # Move the file to the new location with the renamed file
+            # Determine the destination path and handle duplicate files
             destination_path = os.path.join(destination_month_folder, new_filename)
-            shutil.move(file_path, destination_path)
+            if os.path.exists(destination_path):
+                new_filename = resolve_duplicate_filename(destination_month_folder, new_filename)
+                destination_path = os.path.join(destination_month_folder, new_filename)
 
-            print(f"Moved {filename} to {destination_path}")
+            # Move the file to the new location with the renamed file
+            try:
+                shutil.move(file_path, destination_path)
+                print(f"Moved {filename} to {destination_path}")
+            except shutil.Error as e:
+                reason = str(e)
+                files_not_moved.append((filename, reason))
 
         # Recursively process sub-folders
         elif os.path.isdir(file_path):
@@ -134,8 +142,29 @@ def delete_empty_folders(directory):
             else:
                 files_not_moved += len(os.listdir(folder_path))
 
+# Function to resolve duplicate filenames by appending a suffix
+def resolve_duplicate_filename(destination_folder, filename):
+    file_name, file_extension = os.path.splitext(filename)
+    counter = 1
+
+    # Check if there are existing files with similar naming pattern
+    existing_files = [f for f in os.listdir(destination_folder) if f.startswith(f"{file_name}_")]
+    existing_counters = [int(f.split('_')[-1].split('.')[0]) for f in existing_files if f.split('_')[-1].split('.')[0].isdigit()]
+
+    if existing_counters:
+        # If there are existing counters, find the highest one and start the counter from the next number
+        counter = max(existing_counters) + 1
+
+    while os.path.exists(os.path.join(destination_folder, f"{file_name}_{counter}{file_extension}")):
+        counter += 1
+
+    new_filename = f"{file_name}_{counter}{file_extension}"
+    return new_filename
+
 # Start processing files in the source folder and its sub-folders
 process_files(source_folder)
 
 # Display the count of files that were not moved
 print(f"\nNumber of files not moved: {files_not_moved}")
+
+# The End!!!
