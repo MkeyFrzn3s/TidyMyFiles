@@ -1,6 +1,7 @@
 import os
 import shutil
 import exifread
+import hashlib
 from datetime import datetime
 
 # Prompt the user to enter the source folder
@@ -15,8 +16,31 @@ file_hashes = set()
 # List to store the reasons why files were not moved
 files_not_moved = []
 
+# Function to calculate the hash of a file
+def hash_file(file_path):
+    BLOCK_SIZE = 65536
+    hasher = hashlib.sha256()
+    with open(file_path, 'rb') as f:
+        for block in iter(lambda: f.read(BLOCK_SIZE), b''):
+            hasher.update(block)
+    return hasher.hexdigest()
+    
+# Function to generate the new filename based on capture date, camera brand, camera model, city name, and photo count
+def generate_new_filename(capture_date, camera_brand, camera_model, city_name, file_extension):
+# ...
+
+# Function to resolve duplicate filenames by appending a suffix
+def resolve_duplicate_filename(destination_folder, filename):
+    file_name, file_extension = os.path.splitext(filename)
+    counter = 1
+    while os.path.exists(os.path.join(destination_folder, filename)):
+        new_filename = f"{file_name}_{counter}{file_extension}"
+        counter += 1
+    return new_filename
+
 # Recursive function to process files in a directory and its sub-directories
 def process_files(directory):
+    
     for filename in os.listdir(directory):
         file_path = os.path.join(directory, filename)
 
@@ -90,28 +114,6 @@ def process_files(directory):
         # Recursively process sub-folders
         elif os.path.isdir(file_path):
             process_files(file_path)
-
-# Function to generate the new filename based on capture date, camera brand, camera model, city name, and photo count
-def generate_new_filename(capture_date, camera_brand, camera_model, city_name, file_extension):
-    # ...
-
-# Function to calculate the hash of a file
-def hash_file(file_path):
-    BLOCK_SIZE = 65536
-    hasher = hashlib.sha256()
-    with open(file_path, 'rb') as f:
-        for block in iter(lambda: f.read(BLOCK_SIZE), b''):
-            hasher.update(block)
-    return hasher.hexdigest()
-
-# Function to resolve duplicate filenames by appending a suffix
-def resolve_duplicate_filename(destination_folder, filename):
-    file_name, file_extension = os.path.splitext(filename)
-    counter = 1
-    while os.path.exists(os.path.join(destination_folder, filename)):
-        new_filename = f"{file_name}_{counter}{file_extension}"
-        counter += 1
-    return new_filename
 
 # Start processing files in the source folder and its sub-folders
 process_files(source_folder)
