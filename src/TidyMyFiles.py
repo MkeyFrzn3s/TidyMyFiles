@@ -1,7 +1,6 @@
 import os
 import shutil
 import exifread
-import hashlib
 from datetime import datetime
 
 # Prompt the user to enter the source folder
@@ -10,118 +9,133 @@ source_folder = input("Enter the path to the folder containing unstructured phot
 # Prompt the user to enter the destination folder
 destination_folder = input("Enter the path to the folder where the organized tree will be created: ")
 
-# Set to keep track of file hashes
-file_hashes = set()
+# Dictionary to keep track of the photo count for each camera on a given day
+photo_count = {}
 
-# List to store the reasons why files were not moved
-files_not_moved = []
-
-# Function to calculate the hash of a file
-def hash_file(file_path):
-    BLOCK_SIZE = 65536
-    hasher = hashlib.sha256()
-    with open(file_path, 'rb') as f:
-        for block in iter(lambda: f.read(BLOCK_SIZE), b''):
-            hasher.update(block)
-    return hasher.hexdigest()
-    
-# Function to generate the new filename based on capture date, camera brand, camera model, city name, and photo count
-def generate_new_filename(capture_date, camera_brand, camera_model, city_name, file_extension):
-# ...
-
-# Function to resolve duplicate filenames by appending a suffix
-def resolve_duplicate_filename(destination_folder, filename):
-    file_name, file_extension = os.path.splitext(filename)
-    counter = 1
-    while os.path.exists(os.path.join(destination_folder, filename)):
-        new_filename = f"{file_name}_{counter}{file_extension}"
-        counter += 1
-    return new_filename
+# Count of files that were not moved
+files_not_moved = 0
 
 # Recursive function to process files in a directory and its sub-directories
 def process_files(directory):
-    
+    global files_not_moved
+
     for filename in os.listdir(directory):
         file_path = os.path.join(directory, filename)
 
         # Check if the file is a photo or video file (you can customize the extensions as per your file types)
         if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.mov')):
 
-            # Calculate the hash of the file content
-            file_hash = hash_file(file_path)
+            # Open the file for reading
+            with open(file_path, 'rb') as f:
+                tags = exifread.process_file(f)
 
-            # Check if the file is a duplicate based on content
-            if file_hash in file_hashes:
-                # Remove the duplicate file
-                os.remove(file_path)
-                print(f"Removed duplicate file: {file_path}")
-            else:
-                # Add the file hash to the set
-                file_hashes.add(file_hash)
+            # Extract the capture date from the EXIF metadata
+            capture_date = None
 
-                # Continue processing the file
-                with open(file_path, 'rb') as f:
-                    tags = exifread.process_file(f)
+            capture_date_tag = 'EXIF DateTimeOriginal' if 'EXIF DateTimeOriginal' in tags else 'EXIF DateTimeDigitized'
+            if capture_date_tag in tags:
+                capture_date_str = str(tags[capture_date_tag])
+                capture_date = datetime.strptime(capture_date_str, '%Y:%m:%d %H:%M:%S')
 
-                # Extract the capture date from the EXIF metadata
-                capture_date = None
+            # Fallback to modification date if capture date is not available
+            if capture_date is None:
+                modification_time = os.path.getmtime(file_path)
+                capture_date = datetime.fromtimestamp(modification_time)
 
-                capture_date_tag = 'EXIF DateTimeOriginal' if 'EXIF DateTimeOriginal' in tags else 'EXIF DateTimeDigitized'
-                if capture_date_tag in tags:
-                    capture_date_str = str(tags[capture_date_tag])
-                    capture_date = datetime.strptime(capture_date_str, '%Y:%m:%d %H:%M:%S')
+            # Get the camera model name and brand from the metadata (if available)
+            camera_model = str(tags.get('Image Model', 'Unknown'))
+            camera_brand = str(tags.get('Image Make', 'Unknown'))
 
-                # Fallback to modification date if capture date is not available
-                if capture_date is None:
-                    modification_time = os.path.getmtime(file_path)
-                    capture_date = datetime.fromtimestamp(modification_time)
+            # Get the city name from the metadata (if available)
+            city_name = str(tags.get('Image Software', ''))
 
-                # Get the camera model name and brand from the metadata (if available)
-                camera_model = str(tags.get('Image Model', 'Unknown'))
-                camera_brand = str(tags.get('Image Make', 'Unknown'))
+            # Generate a new filename based on capture date, camera brand, camera model, city name, and photo count
+            file_extension = os.path.splitext(filename)[1]
+            new_filename = generate_new_filename(capture_date, camera_brand, camera_model, city_name, file_extension)
 
-                # Get the city name from the metadata (if available)
-                city_name = str(tags.get('Image Software', ''))
+            # Extract year and month from the capture date
+            year = str(capture_date.year)
+            month = str(capture_date.month).zfill(2)  # Zero-padding for single-digit months (e.g., 01, 02)
+            day = str(capture_date.day).zfill(2)  # Zero-padding for single-digit days (e.g., 01, 02)
 
-                # Generate a new filename based on capture date, camera brand, camera model, city name, and photo count
-                file_extension = os.path.splitext(filename)[1]
-                new_filename = generate_new_filename(capture_date, camera_brand, camera_model, city_name, file_extension)
+            # Create the destination folder if it doesn't exist
+            destination_year_folder = os.path.join(destination_folder, year)
+            destination_month_folder = os.path.join(destination_year_folder, month)
+            os.makedirs(destination_month_folder, exist_ok=True)
 
-                # Extract year and month from the capture date
-                year = str(capture_date.year)
-                month = str(capture_date.month).zfill(2)  # Zero-padding for single-digit months (e.g., 01, 02)
-                day = str(capture_date.day).zfill(2)  # Zero-padding for single-digit days (e.g., 01, 02)
+            # Move the file to the new location with the renamed file
+            destination_path = os.path.join(destination_month_folder, new_filename)
+            shutil.move(file_path, destination_path)
 
-                # Create the destination folder if it doesn't exist
-                destination_year_folder = os.path.join(destination_folder, year)
-                destination_month_folder = os.path.join(destination_year_folder, month)
-                os.makedirs(destination_month_folder, exist_ok=True)
-
-                # Determine the destination path and handle duplicate files
-                destination_path = os.path.join(destination_month_folder, new_filename)
-                if os.path.exists(destination_path):
-                    new_filename = resolve_duplicate_filename(destination_month_folder, new_filename)
-                    destination_path = os.path.join(destination_month_folder, new_filename)
-
-                # Move the file to the new location with the renamed file
-                try:
-                    shutil.move(file_path, destination_path)
-                    print(f"Moved {filename} to {destination_path}")
-                except shutil.Error as e:
-                    reason = str(e)
-                    files_not_moved.append((filename, reason))
+            print(f"Moved {filename} to {destination_path}")
 
         # Recursively process sub-folders
         elif os.path.isdir(file_path):
             process_files(file_path)
 
+    # Delete empty folders after moving the files
+    delete_empty_folders(directory)
+
+# Function to generate the new filename based on capture date, camera brand, camera model, city name, and photo count
+def generate_new_filename(capture_date, camera_brand, camera_model, city_name, file_extension):
+    # Separate the capture date into year, month, and day
+    year = capture_date.strftime('%Y')
+    month = capture_date.strftime('%m')
+    day = capture_date.strftime('%d')
+
+    # Construct the new filename with the desired format
+    new_filename = f"{year}_{month}_{day}_"
+
+    # Add the camera brand to the filename if available
+    if camera_brand != 'Unknown':
+        new_filename += f"{camera_brand}_"
+
+    # Add the camera model to the filename
+    new_filename += f"{camera_model}"
+
+    # Add the city name to the filename if available
+    if city_name:
+        new_filename += f"_{city_name}"
+
+    # Add the photo count for the camera and capture date
+    new_filename += f"_{get_photo_count(camera_model, capture_date)}{file_extension}"
+
+    return new_filename
+
+# Function to get the photo count for a specific camera on a given day
+def get_photo_count(camera_model, capture_date):
+    global photo_count
+
+    # Check if the camera is already in the dictionary
+    if camera_model in photo_count:
+        # Check if the capture date is already in the camera's dictionary
+        if capture_date.date() in photo_count[camera_model]:
+            photo_count[camera_model][capture_date.date()] += 1
+        else:
+            photo_count[camera_model][capture_date.date()] = 1
+    else:
+        photo_count[camera_model] = {capture_date.date(): 1}
+
+    # Return the photo count for the camera and capture date
+    return str(photo_count[camera_model][capture_date.date()]).zfill(3)
+
+# Function to delete empty folders after moving the files
+def delete_empty_folders(directory):
+    global files_not_moved
+
+    for root, dirs, files in os.walk(directory, topdown=False):
+        for folder in dirs:
+            folder_path = os.path.join(root, folder)
+
+            # Check if the folder is empty
+            if not os.listdir(folder_path):
+                # Delete the empty folder
+                os.rmdir(folder_path)
+            else:
+                files_not_moved += len(os.listdir(folder_path))
+
 # Start processing files in the source folder and its sub-folders
 process_files(source_folder)
 
-# Print the report of files not moved with their reasons
-print("Files not moved:")
-for file_name, reason in files_not_moved:
-    print(f"{file_name}: {reason}")
-
 # Display the count of files that were not moved
-print(f"\nNumber of files not moved: {len(files_not_moved)}")
+print(f"\nNumber of files not moved: {files_not_moved}")
