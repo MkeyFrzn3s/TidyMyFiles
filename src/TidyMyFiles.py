@@ -5,18 +5,26 @@ from datetime import datetime
 
 # Prompt the user to enter the source folder
 source_folder = input("Enter the path to the folder containing unstructured photos/videos: ")
+# For testing purpose
+## source_folder = "/home/leo/Pictures/Unsorted/"
 
 # Prompt the user to enter the destination folder
 destination_folder = input("Enter the path to the folder where the organized tree will be created: ")
+# For testing purpose 
+## destination_folder = "/home/leo/Pictures/Sorted/"
 
 # Dictionary to keep track of the photo count for each camera on a given day
 photo_count = {}
 
+# Initialize files_not_moved as an empty list
+files_not_moved = []
+
 # Count of files that were not moved
-files_not_moved = 0
+files_not_moved_count = 0
 
 # Recursive function to process files in a directory and its sub-directories
 def process_files(directory):
+    global files_not_moved_count
     global files_not_moved
 
     for filename in os.listdir(directory):
@@ -69,21 +77,24 @@ def process_files(directory):
                 new_filename = resolve_duplicate_filename(destination_month_folder, new_filename)
                 destination_path = os.path.join(destination_month_folder, new_filename)
 
-            # Move the file to the new location with the renamed file
+            # Move the file to the new location with the renamed file, or count and log as not moved
             try:
                 shutil.move(file_path, destination_path)
                 print(f"Moved {filename} to {destination_path}")
-            except shutil.Error as e:
+            except Exception as e:
                 reason = str(e)
                 files_not_moved.append((filename, reason))
-
-        # Recursively process sub-folders
-        elif os.path.isdir(file_path):
-            process_files(file_path)
-
-    # Delete empty folders after moving the files
-    delete_empty_folders(directory)
-
+                files_not_moved_count += 1
+          
+        # If path is a folder, recursively process sub-folders. If the file doesn't have the specified extensions, log and count it as not moved.
+        else:
+            if os.path.isdir(file_path):
+                process_files(file_path)
+            else:
+                reason = "Not a media file-extension"
+                files_not_moved.append((filename, reason))
+                files_not_moved_count += 1            
+    
 # Function to generate the new filename based on capture date, camera brand, camera model, city name, and photo count
 def generate_new_filename(capture_date, camera_brand, camera_model, city_name, file_extension):
     # Separate the capture date into year, month, and day
@@ -129,8 +140,6 @@ def get_photo_count(camera_model, capture_date):
 
 # Function to delete empty folders after moving the files
 def delete_empty_folders(directory):
-    global files_not_moved
-
     for root, dirs, files in os.walk(directory, topdown=False):
         for folder in dirs:
             folder_path = os.path.join(root, folder)
@@ -139,8 +148,6 @@ def delete_empty_folders(directory):
             if not os.listdir(folder_path):
                 # Delete the empty folder
                 os.rmdir(folder_path)
-            else:
-                files_not_moved += len(os.listdir(folder_path))
 
 # Function to resolve duplicate filenames by appending a suffix
 def resolve_duplicate_filename(destination_folder, filename):
@@ -164,7 +171,15 @@ def resolve_duplicate_filename(destination_folder, filename):
 # Start processing files in the source folder and its sub-folders
 process_files(source_folder)
 
-# Display the count of files that were not moved
-print(f"\nNumber of files not moved: {files_not_moved}")
+# Delete empty folders after moving the files
+delete_empty_folders(source_folder)
+
+# Print the list of files that were not moved and the reasons for the failure
+print("Files that were not moved:")
+for filename, reason in files_not_moved:
+    print(f"File: {filename}, Reason: {reason}")
+
+# Print the total count of files that were not moved
+print(f"Total files not moved: {files_not_moved_count}")
 
 # The End!!!
