@@ -1,17 +1,22 @@
+#1 Import Statements ------------------------------
+
 import os
 import shutil
 import exifread
+import hashlib
 from datetime import datetime
 
+#2 Constants and Global Variables -----------------
+
 # Prompt the user to enter the source folder
-source_folder = input("Enter the path to the folder containing unstructured photos/videos: ")
+# source_folder = input("Enter the path to the folder containing unstructured photos/videos: ")
 # For testing purpose
-## source_folder = "/home/leo/Pictures/Unsorted/"
+source_folder = "/home/leo/Pictures/Unsorted/"
 
 # Prompt the user to enter the destination folder
-destination_folder = input("Enter the path to the folder where the organized tree will be created: ")
+# destination_folder = input("Enter the path to the folder where the organized tree will be created: ")
 # For testing purpose 
-## destination_folder = "/home/leo/Pictures/Sorted/"
+destination_folder = "/home/leo/Pictures/Sorted/"
 
 # Dictionary to keep track of the photo count for each camera on a given day
 photo_count = {}
@@ -21,6 +26,11 @@ files_not_moved = []
 
 # Count of files that were not moved
 files_not_moved_count = 0
+
+# Create a dictionary of file hashes that will be used to handle file duplications
+file_hashes = {}
+
+#3 Function Definitions ------------------------------
 
 # Recursive function to process files in a directory and its sub-directories
 def process_files(directory):
@@ -33,58 +43,85 @@ def process_files(directory):
         # Check if the file is a photo or video file (you can customize the extensions as per your file types)
         if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.mov')):
 
-            # Open the file for reading
-            with open(file_path, 'rb') as f:
-                tags = exifread.process_file(f)
+            # Calculate the hash of the file content
+            file_hash = hash_file(file_path)
 
-            # Extract the capture date from the EXIF metadata
-            capture_date = None
+            # Check if the file is a duplicate based on content
+            if file_hash in file_hashes:
+                # Remove the duplicate file
+                try:
+                    os.remove(file_path)
+                    print(f"Removed duplicate file: {file_path}")
+                    # Log the deleted file in the files_not_moved list
+                    files_not_moved.append((filename, "Duplicate - Removed"))
+                except FileNotFoundError:
+                    # If the file was already deleted (e.g., by a previous iteration), just continue to the next file
+                    pass                
+            else:
+                # Add the file to the dictionary with its hash as the key
+                if file_hash in file_hashes:
+                    file_hashes[file_hash].append(file_path)
+                else:
+                    file_hashes[file_hash] = [file_path]
+                
+                # Open the file for reading
+                with open(file_path, 'rb') as f:
+                    tags = exifread.process_file(f)
+                
+                # Extract the capture date from the EXIF metadata
+                capture_date = None
 
-            capture_date_tag = 'EXIF DateTimeOriginal' if 'EXIF DateTimeOriginal' in tags else 'EXIF DateTimeDigitized'
-            if capture_date_tag in tags:
-                capture_date_str = str(tags[capture_date_tag])
-                capture_date = datetime.strptime(capture_date_str, '%Y:%m:%d %H:%M:%S')
+                capture_date_tag = 'EXIF DateTimeOriginal' if 'EXIF DateTimeOriginal' in tags else 'EXIF DateTimeDigitized'
+                if capture_date_tag in tags:
+                    capture_date_str = str(tags[capture_date_tag])
+                    capture_date = datetime.strptime(capture_date_str, '%Y:%m:%d %H:%M:%S')
 
-            # Fallback to modification date if capture date is not available
-            if capture_date is None:
-                modification_time = os.path.getmtime(file_path)
-                capture_date = datetime.fromtimestamp(modification_time)
+                # Fallback to modification date if capture date is not available
+                if capture_date is None:
+                    modification_time = os.path.getmtime(file_path)
+                    capture_date = datetime.fromtimestamp(modification_time)
 
-            # Get the camera model name and brand from the metadata (if available)
-            camera_model = str(tags.get('Image Model', 'Unknown'))
-            camera_brand = str(tags.get('Image Make', 'Unknown'))
+                # Get the camera model name and brand from the metadata (if available)
+                camera_model = str(tags.get('Image Model', 'Unknown'))
+                camera_brand = str(tags.get('Image Make', 'Unknown'))
 
-            # Get the city name from the metadata (if available)
-            city_name = str(tags.get('Image Software', ''))
+                # Get the city name from the metadata (if available)
+                xmp_data = tags.get('XMP', None)
+                if xmp_data:
+                    # Check if the XMP data contains the 'XMP-dc:City' tag
+                    city_name = xmp_data.get('XMP-dc:City', '')
+                else:
+                    # Handle the case when XMP metadata is not available
+                    city_name = ''
 
-            # Generate a new filename based on capture date, camera brand, camera model, city name, and photo count
-            file_extension = os.path.splitext(filename)[1]
-            new_filename = generate_new_filename(capture_date, camera_brand, camera_model, city_name, file_extension)
+                # Generate a new filename based on capture date, camera brand, camera model, city name, and photo count
+                file_extension = os.path.splitext(filename)[1]
+                new_filename = generate_new_filename(capture_date, camera_brand, camera_model, city_name, file_extension)
 
-            # Extract year and month from the capture date
-            year = str(capture_date.year)
-            month = str(capture_date.month).zfill(2)  # Zero-padding for single-digit months (e.g., 01, 02)
-            day = str(capture_date.day).zfill(2)  # Zero-padding for single-digit days (e.g., 01, 02)
+                # Extract year and month from the capture date
+                year = str(capture_date.year)
+                month = str(capture_date.month).zfill(2)  # Zero-padding for single-digit months (e.g., 01, 02)
+                day = str(capture_date.day).zfill(2)  # Zero-padding for single-digit days (e.g., 01, 02)
 
-            # Create the destination folder if it doesn't exist
-            destination_year_folder = os.path.join(destination_folder, year)
-            destination_month_folder = os.path.join(destination_year_folder, month)
-            os.makedirs(destination_month_folder, exist_ok=True)
+                # Create the destination folder if it doesn't exist
+                destination_year_folder = os.path.join(destination_folder, year)
+                destination_month_folder = os.path.join(destination_year_folder, month)
+                os.makedirs(destination_month_folder, exist_ok=True)
 
-            # Determine the destination path and handle duplicate files
-            destination_path = os.path.join(destination_month_folder, new_filename)
-            if os.path.exists(destination_path):
-                new_filename = resolve_duplicate_filename(destination_month_folder, new_filename)
+                # Determine the destination path and handle duplication of file names at the destination folder
                 destination_path = os.path.join(destination_month_folder, new_filename)
+                if os.path.exists(destination_path):
+                    new_filename = resolve_duplicate_filename(destination_month_folder, new_filename)
+                    destination_path = os.path.join(destination_month_folder, new_filename)
 
-            # Move the file to the new location with the renamed file, or count and log as not moved
-            try:
-                shutil.move(file_path, destination_path)
-                print(f"Moved {filename} to {destination_path}")
-            except Exception as e:
-                reason = str(e)
-                files_not_moved.append((filename, reason))
-                files_not_moved_count += 1
+                # Move the file to the new location with the renamed file, or count and log as not moved
+                try:
+                    shutil.move(file_path, destination_path)
+                    print(f"Moved {filename} to {destination_path}")
+                except shutil.Error as e:
+                        reason = str(e)
+                        files_not_moved.append((filename, reason))
+                        files_not_moved_count += 1
           
         # If path is a folder, recursively process sub-folders. If the file doesn't have the specified extensions, log and count it as not moved.
         else:
@@ -167,6 +204,17 @@ def resolve_duplicate_filename(destination_folder, filename):
 
     new_filename = f"{file_name}_{counter}{file_extension}"
     return new_filename
+
+# Function to calculate the hash of a file
+def hash_file(file_to_hash):
+    BLOCK_SIZE = 65536
+    hasher = hashlib.sha256()
+    with open(file_to_hash, 'rb') as f:
+        for block in iter(lambda: f.read(BLOCK_SIZE), b''):
+            hasher.update(block)
+    return hasher.hexdigest()
+
+#4 Script Execution ------------------------------
 
 # Start processing files in the source folder and its sub-folders
 process_files(source_folder)
