@@ -6,20 +6,19 @@ import exifread
 import piexif
 import hashlib
 import string
+import cv2
 from datetime import datetime
 from opencage.geocoder import OpenCageGeocode
 
 #2 Constants and Global Variables -----------------
 
 # Prompt the user to enter the source folder
-# source_folder = input("Enter the path to the folder containing unstructured photos/videos: ")
-# For testing purpose
-source_folder = "/home/leo/Pictures/Unsorted/"
+source_folder = input("Enter the path to the folder containing unstructured photos/videos: ")
+# source_folder = "xyz" # set a fixed source folder if convenient
 
 # Prompt the user to enter the destination folder
-# destination_folder = input("Enter the path to the folder where the organized tree will be created: ")
-# For testing purpose 
-destination_folder = "/home/leo/Pictures/Sorted/"
+destination_folder = input("Enter the path to the folder where the organized tree will be created: ")
+# destination_folder = "xyz" # set a fixed destination folder if convenient
 
 # Dictionary to keep track of the photo count for each camera on a given day
 photo_count = {}
@@ -34,7 +33,8 @@ files_not_moved_count = 0
 file_hashes = {}
 
 # OpenCage Geocoder API key
-opencage_api_key = '8d6c17c617da4add96af4c2f7f860178'
+opencage_api_key = input("Enter your OpenCage API Key. Or visit https://opencagedata.com/")
+# opencage_api_key = 'xyz' # set a fixed opencage API if convinient
 
 # Create a dictionary to store city names for non-JPEG/TIFF files
 city_names_temp = {}
@@ -73,6 +73,17 @@ def process_files(directory):
                 else:
                     file_hashes[file_hash] = [file_path]
                 
+                # Assess image quality and remove low-quality images
+                if filename.lower().endswith(('.jpg', '.jpeg', '.tiff', '.tif')):                                                      
+                    if is_low_quality_image(file_path):
+                        try:
+                            reason = "Low Quality"
+                            files_not_moved.append((filename, reason))
+                            files_not_moved_count += 1    
+                            continue  # Skip further processing for this image
+                        except FileNotFoundError:
+                            pass
+
                 # Read EXIF data using either piexif or exifread
                 if filename.lower().endswith(('.jpg', '.jpeg', '.tiff', '.tif')):
                     exif_dict = piexif.load(file_path)
@@ -331,6 +342,28 @@ def hash_file(file_to_hash):
         for block in iter(lambda: f.read(BLOCK_SIZE), b''):
             hasher.update(block)
     return hasher.hexdigest()
+
+# Function to caputure low quality files
+def is_low_quality_image(image_path):
+    # Load the image using OpenCV
+    image = cv2.imread(image_path)
+
+    # Assess image brightness (lower value indicates darker image)
+    brightness = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).mean()
+
+    # Assess image sharpness (lower value indicates blurrier image)
+    # sharpness = cv2.Laplacian(image, cv2.CV_64F).var()
+
+    # Assess image stability (higher value indicates more stable image)
+    # stability = cv2.Laplacian(image, cv2.CV_64F).mean()
+
+    # You can define specific thresholds for brightness, sharpness, and stability
+    brightness_threshold = 25  # Adjust this value according to your preference
+    # sharpness_threshold = 50  # Adjust this value according to your preference
+    # stability_threshold = 20  # Adjust this value according to your preference
+
+    # Return True if the image is considered low quality based on the thresholds
+    return brightness < brightness_threshold # or sharpness < sharpness_threshold
 
 #4 Script Execution ------------------------------
 
