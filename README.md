@@ -23,7 +23,7 @@ You can efficiently organize and manage your extensive photo and video collectio
 
 1. Run the app:
    ```
-   python tidy_my_files.py
+   python src/tidy_my_files.py
    ```
 2. Follow prompts to set source/destination folders, naming schemes, etc.
 3. Click "Organize" to move and rename files.
