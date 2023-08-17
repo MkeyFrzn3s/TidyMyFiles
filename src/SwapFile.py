@@ -32,7 +32,7 @@ file_hashes = {}
 
 # OpenCage Geocoder API key
 opencage_api_key = input("Enter your OpenCage API Key. Or visit https://opencagedata.com/")
-opencage_api_key = '8d6c17c617da4add96af4c2f7f860178'
+# opencage_api_key = 'xyz' #set a fixed API key if convenient
 
 # Create a dictionary to store city names for non-JPEG/TIFF files
 city_names_temp = {}

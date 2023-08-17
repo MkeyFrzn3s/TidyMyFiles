@@ -33,7 +33,7 @@ files_not_moved_count = 0
 file_hashes = {}
 
 # OpenCage Geocoder API key
-opencage_api_key = input("Enter your OpenCage API Key. Or visit https://opencagedata.com/")
+opencage_api_key = input("Enter your OpenCage API Key. Visit https://opencagedata.com/ to create one: ")
 # opencage_api_key = 'xyz' # set a fixed opencage API if convinient
 
 # Create a dictionary to store city names for non-JPEG/TIFF files
